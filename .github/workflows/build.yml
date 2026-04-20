@@ -42,7 +42,7 @@ jobs:
           # python-for-android automatically uses ANDROID_SDK_ROOT and ANDROID_NDK_HOME 
           # which are already set in the ubuntu-latest runner.
           # Here we build a generic distribution containing python3 for arm64-v8a.
-          p4a create --requirements=python3 --arch=arm64-v8a --dist_name=python3_dist --bootstrap=generic --ndk-api=21 --android-api=34
+          p4a create --requirements=python3 --arch=arm64-v8a --dist_name=python3_dist --bootstrap=service_only --ndk-api=21 --android-api=34
 
       - name: Package compiled distribution
         run: |
