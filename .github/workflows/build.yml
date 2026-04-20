@@ -191,6 +191,85 @@ jobs:
             ac_cv_func_getloadavg=no \
             ac_cv_header_spawn_h=no
 
+          # Write Setup.local to compile essential C modules as built-in (static).
+          # Paths are relative to the Modules/ directory.
+          DEPS="$HOME/android-deps"
+          cat > Modules/Setup.local << SETUP
+# --- Process / OS ---
+_posixsubprocess _posixsubprocess.c
+select selectmodule.c
+fcntl fcntlmodule.c
+mmap mmapmodule.c
+resource resource.c
+termios termios.c
+_multiprocessing _multiprocessing/multiprocessing.c _multiprocessing/semaphore.c
+
+# --- Data structures ---
+_struct _struct.c
+array arraymodule.c
+_queue _queuemodule.c
+_bisect _bisectmodule.c
+_heapq _heapqmodule.c
+
+# --- Serialization ---
+_csv _csv.c
+_pickle _pickle.c
+_json _json.c
+binascii binascii.c
+
+# --- Core ---
+_contextvars _contextvarsmodule.c
+_datetime _datetimemodule.c
+_random _randommodule.c
+_opcode _opcode.c
+unicodedata unicodedata.c
+_statistics _statisticsmodule.c
+
+# --- Math ---
+math mathmodule.c _math.c -lm
+cmath cmathmodule.c _math.c -lm
+
+# --- Compression ---
+zlib zlibmodule.c -I${DEPS}/include -L${DEPS}/lib -lz
+
+# --- Hashing ---
+_md5 md5module.c
+_sha1 sha1module.c
+_sha256 sha256module.c
+_sha512 sha512module.c
+_sha3 _sha3/sha3module.c
+_blake2 _blake2/blake2module.c _blake2/blake2b_impl.c _blake2/blake2s_impl.c
+
+# --- SSL / TLS ---
+_ssl _ssl.c -I${DEPS}/include -L${DEPS}/lib -lssl -lcrypto
+_hashlib _hashopenssl.c -I${DEPS}/include -L${DEPS}/lib -lssl -lcrypto
+
+# --- Networking ---
+_socket socketmodule.c
+
+# --- XML ---
+pyexpat pyexpat.c expat/xmlparse.c expat/xmlrole.c expat/xmltok.c -I\$(srcdir)/Modules/expat -DHAVE_EXPAT_CONFIG_H -DXML_POOR_ENTROPY -DUSE_PYEXPAT_CAPI
+_elementtree _elementtree.c -I\$(srcdir)/Modules/expat -DHAVE_EXPAT_CONFIG_H -DXML_POOR_ENTROPY -DUSE_PYEXPAT_CAPI
+
+# --- CJK Codecs ---
+_multibytecodec cjkcodecs/multibytecodec.c
+_codecs_cn cjkcodecs/_codecs_cn.c
+_codecs_hk cjkcodecs/_codecs_hk.c
+_codecs_iso2022 cjkcodecs/_codecs_iso2022.c
+_codecs_jp cjkcodecs/_codecs_jp.c
+_codecs_kr cjkcodecs/_codecs_kr.c
+_codecs_tw cjkcodecs/_codecs_tw.c
+
+# --- ctypes ---
+_ctypes _ctypes/ctypes.c _ctypes/callbacks.c _ctypes/callproc.c _ctypes/stgdict.c _ctypes/cfield.c -I${DEPS}/include -L${DEPS}/lib -lffi
+
+# --- readline (optional but nice) ---
+readline readline.c -lreadline -ltermcap
+SETUP
+
+          echo "=== Modules/Setup.local ==="
+          cat Modules/Setup.local
+
           make -j$(nproc)
           make install
 
