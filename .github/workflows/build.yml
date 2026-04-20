@@ -177,6 +177,7 @@ jobs:
             ac_cv_func_forkpty=no \
             ac_cv_func_clock_settime=no \
             ac_cv_func_sendfile=yes \
+            ac_cv_func_getloadavg=no \
             ac_cv_header_spawn_h=no
 
           make -j$(nproc)
