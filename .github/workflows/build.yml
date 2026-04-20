@@ -138,7 +138,7 @@ jobs:
           __thread char __bionic_tls_align_fix __attribute__((aligned(64)));
           EOF
           ${{ env.TOOLCHAIN }}/bin/${{ env.TARGET_TRIPLE }}${{ env.API_LEVEL }}-clang \
-            --sysroot=${{ env.SYSROOT }} -c /tmp/tls_align_fix.c -o /tmp/tls_align_fix.o
+            --sysroot=${{ env.SYSROOT }} -fno-emulated-tls -c /tmp/tls_align_fix.c -o /tmp/tls_align_fix.o
           ${{ env.TOOLCHAIN }}/bin/llvm-ar rcs /tmp/libtlsfix.a /tmp/tls_align_fix.o
 
           export CFLAGS="--sysroot=${{ env.SYSROOT }} -I$DEPS/include"
