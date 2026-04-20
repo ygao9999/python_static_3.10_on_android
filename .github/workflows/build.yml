@@ -114,6 +114,23 @@ jobs:
           make -j$(nproc)
           make install_sw
 
+      - name: Cross-compile SQLite
+        run: |
+          wget -q https://www.sqlite.org/2024/sqlite-autoconf-3450100.tar.gz
+          tar xzf sqlite-autoconf-3450100.tar.gz
+          cd sqlite-autoconf-3450100
+
+          ./configure \
+            --host=${{ env.TARGET_TRIPLE }} \
+            --prefix=$HOME/android-deps \
+            --disable-shared --enable-static \
+            CC="${{ env.TOOLCHAIN }}/bin/${{ env.TARGET_TRIPLE }}${{ env.API_LEVEL }}-clang" \
+            AR="${{ env.TOOLCHAIN }}/bin/llvm-ar" \
+            RANLIB="${{ env.TOOLCHAIN }}/bin/llvm-ranlib" \
+            CFLAGS="--sysroot=${{ env.SYSROOT }}"
+          make -j$(nproc)
+          make install
+
       # ── Step 4: Cross-compile CPython 3.10 ──
       - name: Cross-compile Python 3.10 for Android aarch64
         run: |
@@ -263,6 +280,9 @@ jobs:
 
           # --- ctypes ---
           _ctypes _ctypes/_ctypes.c _ctypes/callbacks.c _ctypes/callproc.c _ctypes/stgdict.c _ctypes/cfield.c -I${DEPS}/include -L${DEPS}/lib -lffi
+
+          # --- SQLite ---
+          _sqlite3 _sqlite/cache.c _sqlite/connection.c _sqlite/cursor.c _sqlite/microprotocols.c _sqlite/module.c _sqlite/prepare_protocol.c _sqlite/row.c _sqlite/statement.c _sqlite/util.c -I${DEPS}/include -L${DEPS}/lib -lsqlite3
           SETUP
 
           echo "=== Modules/Setup.local ==="
