@@ -285,6 +285,12 @@ jobs:
           print('✅ Verified: ARM64 Android binary')
           "
 
+      - name: Bundle pip installer
+        run: |
+          # Download get-pip.py so user can install pip on device:
+          #   ./python3.10 get-pip.py
+          wget -q https://bootstrap.pypa.io/get-pip.py -O $HOME/python-android/get-pip.py
+
       - name: Package Python distribution
         run: |
           cd $HOME/python-android
