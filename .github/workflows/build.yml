@@ -10,7 +10,7 @@ on:
 env:
   PYTHON_VERSION: "3.10.16"
   NDK_VERSION: "27.3.13750724"
-  API_LEVEL: "21"
+  API_LEVEL: "28"
   TARGET_ARCH: "aarch64"
   TARGET_TRIPLE: "aarch64-linux-android"
 
@@ -135,13 +135,15 @@ jobs:
           export CPPFLAGS="--sysroot=${{ env.SYSROOT }} -I$DEPS/include"
           export LDFLAGS="--sysroot=${{ env.SYSROOT }} -L$DEPS/lib -static"
 
-          # ac_cv variables work around configure tests that fail during cross-compile
+          # ac_cv variables work around configure tests that fail during cross-compile.
+          # Android is missing many standard POSIX functions even at API 28.
           ./configure \
             --host=${{ env.TARGET_TRIPLE }} \
             --build=x86_64-linux-gnu \
             --prefix=$HOME/python-android \
             --disable-ipv6 \
             --disable-shared \
+            --without-ensurepip \
             --with-build-python=$HOME/host-python/bin/python3.10 \
             --with-openssl=$DEPS \
             ac_cv_file__dev_ptmx=no \
@@ -156,7 +158,26 @@ jobs:
             ac_cv_func_eventfd=no \
             ac_cv_func_memfd_create=no \
             ac_cv_func_sigwaitinfo=no \
-            ac_cv_func_sigtimedwait=no
+            ac_cv_func_sigtimedwait=no \
+            ac_cv_func_ctermid=no \
+            ac_cv_func_fexecve=no \
+            ac_cv_func_futimes=no \
+            ac_cv_func_lutimes=no \
+            ac_cv_func_setpwent=no \
+            ac_cv_func_getpwent=no \
+            ac_cv_func_endpwent=no \
+            ac_cv_func_getspnam=no \
+            ac_cv_func_getspent=no \
+            ac_cv_func_setgroups=no \
+            ac_cv_func_initgroups=no \
+            ac_cv_func_setlocale=yes \
+            ac_cv_func_getgrouplist=no \
+            ac_cv_func_login_tty=no \
+            ac_cv_func_openpty=no \
+            ac_cv_func_forkpty=no \
+            ac_cv_func_clock_settime=no \
+            ac_cv_func_sendfile=yes \
+            ac_cv_header_spawn_h=no
 
           make -j$(nproc)
           make install
