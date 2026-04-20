@@ -10,12 +10,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # The standard ubuntu-latest runner already has Android SDK installed.
       # We just verify it's there.
@@ -47,7 +45,7 @@ jobs:
           file cross-build/aarch64/python
 
       - name: Upload static binary as artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: python-aarch64
           path: cpython/cross-build/aarch64/python
