@@ -1,11 +1,18 @@
-name: Build Android Python 3.10 Static
+name: Build Android Python 3.10 (NDK Cross-Compile)
 
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-  workflow_dispatch: # Allows manual trigger from the Actions tab
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: "3.10.16"
+  NDK_VERSION: "27.3.13750724"
+  API_LEVEL: "21"
+  TARGET_ARCH: "aarch64"
+  TARGET_TRIPLE: "aarch64-linux-android"
 
 jobs:
   build:
@@ -15,45 +22,155 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      # The standard ubuntu-latest runner already has Android SDK installed.
-      # We just verify it's there.
-      - name: Verify Android SDK
-        run: |
-          echo "ANDROID_HOME: $ANDROID_HOME"
-          echo "ANDROID_SDK_ROOT: $ANDROID_SDK_ROOT"
-
-      - name: Install system dependencies
+      - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential libffi-dev libssl-dev ccache unzip \
-            autoconf automake libtool libltdl-dev pkg-config cmake
+          sudo apt-get install -y build-essential zlib1g-dev libffi-dev \
+            libssl-dev libbz2-dev libreadline-dev libsqlite3-dev \
+            libncurses-dev liblzma-dev tk-dev uuid-dev file wget
 
-      - name: Set up Host Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-
-      - name: Install python-for-android
+      # ── Step 1: Build Host Python 3.10 (needed by cross-compile) ──
+      - name: Download CPython 3.10 source
         run: |
-          python -m pip install --upgrade pip setuptools Cython virtualenv
-          pip install git+https://github.com/kivy/python-for-android.git
+          wget -q https://www.python.org/ftp/python/${{ env.PYTHON_VERSION }}/Python-${{ env.PYTHON_VERSION }}.tgz
+          tar xzf Python-${{ env.PYTHON_VERSION }}.tgz
 
-      - name: Run python-for-android (p4a) build
+      - name: Build Host Python 3.10
         run: |
-          # python-for-android automatically uses ANDROID_SDK_ROOT and ANDROID_NDK_HOME 
-          # which are already set in the ubuntu-latest runner.
-          # Here we build a generic distribution containing python3 for arm64-v8a.
-          p4a create --requirements=python3 --arch=arm64-v8a --dist_name=python3_dist --bootstrap=service_only --ndk-api=21 --android-api=34
+          cd Python-${{ env.PYTHON_VERSION }}
+          ./configure --prefix=$HOME/host-python
+          make -j$(nproc)
+          make install
+          echo "$HOME/host-python/bin" >> $GITHUB_PATH
 
-      - name: Package compiled distribution
+      # ── Step 2: Set up NDK toolchain ──
+      - name: Set up NDK toolchain environment
         run: |
-          # The result of p4a is stored in ~/.python-for-android/dists/
-          cd ~/.python-for-android/dists/python3_dist
-          tar -czvf $GITHUB_WORKSPACE/python3-android-arm64-dist.tar.gz .
+          NDK_PATH="$ANDROID_HOME/ndk/${{ env.NDK_VERSION }}"
+          TOOLCHAIN="$NDK_PATH/toolchains/llvm/prebuilt/linux-x86_64"
+          SYSROOT="$TOOLCHAIN/sysroot"
 
-      - name: Upload python distribution as artifact
+          echo "NDK_PATH=$NDK_PATH" >> $GITHUB_ENV
+          echo "TOOLCHAIN=$TOOLCHAIN" >> $GITHUB_ENV
+          echo "SYSROOT=$SYSROOT" >> $GITHUB_ENV
+
+          # Verify NDK exists
+          ls "$TOOLCHAIN/bin/${{ env.TARGET_TRIPLE }}${{ env.API_LEVEL }}-clang" || {
+            echo "::error::NDK toolchain not found at expected path"
+            echo "Available NDK versions:"
+            ls "$ANDROID_HOME/ndk/" 2>/dev/null || echo "No NDK found"
+            exit 1
+          }
+          echo "NDK toolchain found successfully"
+
+      # ── Step 3: Cross-compile dependencies (zlib, libffi, openssl) ──
+      - name: Cross-compile zlib
+        run: |
+          wget -q https://zlib.net/zlib-1.3.1.tar.gz
+          tar xzf zlib-1.3.1.tar.gz
+          cd zlib-1.3.1
+
+          export CC="${{ env.TOOLCHAIN }}/bin/${{ env.TARGET_TRIPLE }}${{ env.API_LEVEL }}-clang"
+          export AR="${{ env.TOOLCHAIN }}/bin/llvm-ar"
+          export RANLIB="${{ env.TOOLCHAIN }}/bin/llvm-ranlib"
+          export CFLAGS="--sysroot=${{ env.SYSROOT }}"
+          export PREFIX="$HOME/android-deps"
+
+          ./configure --prefix=$PREFIX --static
+          make -j$(nproc)
+          make install
+
+      - name: Cross-compile libffi
+        run: |
+          wget -q https://github.com/libffi/libffi/releases/download/v3.4.6/libffi-3.4.6.tar.gz
+          tar xzf libffi-3.4.6.tar.gz
+          cd libffi-3.4.6
+
+          ./configure \
+            --host=${{ env.TARGET_TRIPLE }} \
+            --prefix=$HOME/android-deps \
+            --disable-shared --enable-static \
+            CC="${{ env.TOOLCHAIN }}/bin/${{ env.TARGET_TRIPLE }}${{ env.API_LEVEL }}-clang" \
+            AR="${{ env.TOOLCHAIN }}/bin/llvm-ar" \
+            RANLIB="${{ env.TOOLCHAIN }}/bin/llvm-ranlib" \
+            CFLAGS="--sysroot=${{ env.SYSROOT }}"
+          make -j$(nproc)
+          make install
+
+      - name: Cross-compile OpenSSL
+        run: |
+          wget -q https://github.com/openssl/openssl/releases/download/openssl-3.3.2/openssl-3.3.2.tar.gz
+          tar xzf openssl-3.3.2.tar.gz
+          cd openssl-3.3.2
+
+          export ANDROID_NDK_ROOT="${{ env.NDK_PATH }}"
+          export PATH="${{ env.TOOLCHAIN }}/bin:$PATH"
+
+          ./Configure android-arm64 \
+            --prefix=$HOME/android-deps \
+            --openssldir=$HOME/android-deps/ssl \
+            -D__ANDROID_API__=${{ env.API_LEVEL }} \
+            no-shared no-tests
+          make -j$(nproc)
+          make install_sw
+
+      # ── Step 4: Cross-compile CPython 3.10 ──
+      - name: Cross-compile Python 3.10 for Android aarch64
+        run: |
+          cd Python-${{ env.PYTHON_VERSION }}
+
+          # Clean previous host build objects
+          make distclean || true
+
+          export CC="${{ env.TOOLCHAIN }}/bin/${{ env.TARGET_TRIPLE }}${{ env.API_LEVEL }}-clang"
+          export CXX="${{ env.TOOLCHAIN }}/bin/${{ env.TARGET_TRIPLE }}${{ env.API_LEVEL }}-clang++"
+          export AR="${{ env.TOOLCHAIN }}/bin/llvm-ar"
+          export RANLIB="${{ env.TOOLCHAIN }}/bin/llvm-ranlib"
+          export STRIP="${{ env.TOOLCHAIN }}/bin/llvm-strip"
+          export READELF="${{ env.TOOLCHAIN }}/bin/llvm-readelf"
+
+          DEPS="$HOME/android-deps"
+
+          export CFLAGS="--sysroot=${{ env.SYSROOT }} -I$DEPS/include"
+          export CPPFLAGS="--sysroot=${{ env.SYSROOT }} -I$DEPS/include"
+          export LDFLAGS="--sysroot=${{ env.SYSROOT }} -L$DEPS/lib -static"
+
+          # ac_cv variables work around configure tests that fail during cross-compile
+          ./configure \
+            --host=${{ env.TARGET_TRIPLE }} \
+            --build=x86_64-linux-gnu \
+            --prefix=$HOME/python-android \
+            --disable-ipv6 \
+            --disable-shared \
+            --with-build-python=$HOME/host-python/bin/python3.10 \
+            --with-openssl=$DEPS \
+            ac_cv_file__dev_ptmx=no \
+            ac_cv_file__dev_ptc=no \
+            ac_cv_buggy_getaddrinfo=no
+
+          make -j$(nproc)
+          make install
+
+      # ── Step 5: Verify and package ──
+      - name: Verify binary
+        run: |
+          file $HOME/python-android/bin/python3.10
+          $HOME/host-python/bin/python3.10 -c "
+          import subprocess
+          result = subprocess.run(['file', '$HOME/python-android/bin/python3.10'], capture_output=True, text=True)
+          print(result.stdout)
+          assert 'aarch64' in result.stdout.lower() or 'arm' in result.stdout.lower(), 'Not an ARM64 binary!'
+          print('✅ Verified: ARM64 Android binary')
+          "
+
+      - name: Package Python distribution
+        run: |
+          cd $HOME/python-android
+          tar -czvf $GITHUB_WORKSPACE/python3.10-android-aarch64.tar.gz .
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v5
         with:
-          name: python3-android-arm64-dist
-          path: python3-android-arm64-dist.tar.gz
+          name: python3.10-android-aarch64
+          path: python3.10-android-aarch64.tar.gz
           if-no-files-found: error
