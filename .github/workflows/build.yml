@@ -143,7 +143,8 @@ jobs:
 
           export CFLAGS="--sysroot=${{ env.SYSROOT }} -I$DEPS/include"
           export CPPFLAGS="--sysroot=${{ env.SYSROOT }} -I$DEPS/include"
-          export LDFLAGS="--sysroot=${{ env.SYSROOT }} -L$DEPS/lib -L/tmp -static"
+          # Hybrid linking: our deps are .a only (auto static), system libs (libc/libdl/libm) stay dynamic
+          export LDFLAGS="--sysroot=${{ env.SYSROOT }} -L$DEPS/lib -L/tmp"
           export LIBS="-Wl,--whole-archive -ltlsfix -Wl,--no-whole-archive"
 
           # ac_cv variables work around configure tests that fail during cross-compile.
