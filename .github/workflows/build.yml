@@ -261,10 +261,7 @@ jobs:
           _codecs_tw cjkcodecs/_codecs_tw.c
 
           # --- ctypes ---
-          _ctypes _ctypes/ctypes.c _ctypes/callbacks.c _ctypes/callproc.c _ctypes/stgdict.c _ctypes/cfield.c -I${DEPS}/include -L${DEPS}/lib -lffi
-
-          # --- readline (optional but nice) ---
-          readline readline.c -lreadline -ltermcap
+          _ctypes _ctypes/_ctypes.c _ctypes/callbacks.c _ctypes/callproc.c _ctypes/stgdict.c _ctypes/cfield.c -I${DEPS}/include -L${DEPS}/lib -lffi
           SETUP
 
           echo "=== Modules/Setup.local ==="
