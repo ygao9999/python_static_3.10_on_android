@@ -146,7 +146,8 @@ jobs:
             --with-openssl=$DEPS \
             ac_cv_file__dev_ptmx=no \
             ac_cv_file__dev_ptc=no \
-            ac_cv_buggy_getaddrinfo=no
+            ac_cv_buggy_getaddrinfo=no \
+            ac_cv_func_sem_clockwait=no
 
           make -j$(nproc)
           make install
