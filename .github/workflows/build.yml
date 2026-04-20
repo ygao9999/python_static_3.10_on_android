@@ -147,7 +147,16 @@ jobs:
             ac_cv_file__dev_ptmx=no \
             ac_cv_file__dev_ptc=no \
             ac_cv_buggy_getaddrinfo=no \
-            ac_cv_func_sem_clockwait=no
+            ac_cv_func_sem_clockwait=no \
+            ac_cv_func_close_range=no \
+            ac_cv_func_copy_file_range=no \
+            ac_cv_func_preadv2=no \
+            ac_cv_func_pwritev2=no \
+            ac_cv_func_pidfd_open=no \
+            ac_cv_func_eventfd=no \
+            ac_cv_func_memfd_create=no \
+            ac_cv_func_sigwaitinfo=no \
+            ac_cv_func_sigtimedwait=no
 
           make -j$(nproc)
           make install
